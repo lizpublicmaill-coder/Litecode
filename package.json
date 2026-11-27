@@ -1,0 +1,22 @@
+{
+  "name": "litechat",
+  "version": "1.0.0",
+  "description": "Lightweight multi-provider AI chat",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win portable --publish never"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.litechat.app",
+    "productName": "LiteChat",
+    "compression": "maximum",
+    "files": ["main.js", "preload.js", "index.html"],
+    "win": { "target": "portable" },
+    "electronLanguages": ["en-US"]
+  }
+}
