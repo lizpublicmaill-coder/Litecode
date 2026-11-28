@@ -3,8 +3,12 @@ const fs = require('fs'), path = require('path');
 const aborts = new Map();
 const cfgFile = () => path.join(app.getPath('userData'), 'config.json');
 const defDir = () => app.getPath('userData');
-const dir = () => { try { const d = JSON.parse(fs.readFileSync(cfgFile(), 'utf8')).dir; if (d && fs.existsSync(d)) return d; } catch {} return defDir(); };
-const setDir = d => { fs.mkdirSync(defDir(), { recursive: true }); fs.writeFileSync(cfgFile(), JSON.stringify({ dir: d })); };
+const readCfg = () => { try { return JSON.parse(fs.readFileSync(cfgFile(), 'utf8')) || {}; } catch { return {}; } };
+const patchCfg = o => { fs.mkdirSync(defDir(), { recursive: true }); fs.writeFileSync(cfgFile(), JSON.stringify({ ...readCfg(), ...o })); };
+const dir = () => { const d = readCfg().dir; if (d && fs.existsSync(d)) return d; return defDir(); };
+const setDir = d => patchCfg({ dir: d });
+require('./agent/ipc')({ ipcMain, dialog, app, readCfg, patchCfg });
+const { applyEffort } = require('./agent/effort');
 const file = () => path.join(dir(), 'data.json');
 ipcMain.handle('dir:get', () => ({ dir: dir() }));
 ipcMain.handle('dir:pick', async () => {
@@ -46,23 +50,6 @@ const conv = (m, an) => {
 };
 ipcMain.on('chat:stop', (_, id) => aborts.get(id)?.abort());
 
-function applyEffort(body, p, e) {
-  const lv = { low: 0, medium: 1, high: 2, max: 3 }[e]; if (lv === undefined) return body;
-  const m = (p.model || '').toLowerCase();
-  if (p.type === 'anthropic') {
-    const budget = [2048, 8192, 16384, 32000][lv];
-    body.thinking = { type: 'enabled', budget_tokens: budget };
-    body.max_tokens = Math.max(body.max_tokens || 0, budget + 4096);
-  } else if (p.type === 'gemini') {
-    const g3 = /gemini-3/.test(m), pro = m.includes('pro');
-    body.generationConfig = { ...(body.generationConfig || {}), thinkingConfig: g3
-      ? { thinkingLevel: pro ? (lv < 1 ? 'low' : 'high') : ['low', 'medium', 'high', 'high'][lv] }
-      : { thinkingBudget: [1024, 8192, 24576, pro ? 32768 : 24576][lv] } };
-  } else {
-    body.reasoning_effort = ['low', 'medium', 'high', 'high'][lv];
-  }
-  return body;
-}
 ipcMain.handle('chat:start', async (e, { id, p, messages: raw, system, effort }) => {
   const messages = raw.map(x => conv(x, p.type === 'anthropic'));
   const send = (t, v) => !e.sender.isDestroyed() && e.sender.send('chat:evt', { id, t, v });

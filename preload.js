@@ -1,5 +1,12 @@
 const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('api', {
+  agentCfg: () => ipcRenderer.invoke('agent:cfg:get'),
+  agentSetCfg: c => ipcRenderer.invoke('agent:cfg:set', c),
+  agentPick: () => ipcRenderer.invoke('agent:pick'),
+  agentRun: a => ipcRenderer.invoke('agent:run', a),
+  agentStop: id => ipcRenderer.send('agent:stop', id),
+  agentConfirm: r => ipcRenderer.send('agent:confirm', r),
+  onAgent: cb => ipcRenderer.on('agent:evt', (_, m) => cb(m)),
   dir: () => ipcRenderer.invoke('dir:get'),
   pickDir: () => ipcRenderer.invoke('dir:pick'),
   resetDir: () => ipcRenderer.invoke('dir:reset'),

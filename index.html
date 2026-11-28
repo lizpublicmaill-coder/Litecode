@@ -47,6 +47,17 @@ svg{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:
 #menu{display:none}
 #prov{min-width:220px;max-width:340px;font-weight:600}
 #sys{flex:1;min-width:0}#eff{width:170px;flex:none}
+#agentb.on{color:#fff;background:var(--grad);border-color:transparent}
+#agentbar{display:none;align-items:center;gap:10px;padding:8px 20px;border-bottom:1px solid var(--line);background:#7c8cff0d;flex-wrap:wrap}
+#agentbar select{width:auto;padding:6px 30px 6px 10px}#agentbar .ahint{color:var(--m);font-size:12px}
+#aws{max-width:300px}#aws span{overflow:hidden;text-overflow:ellipsis}
+#cdlg{position:fixed;inset:0;background:#05060acc;backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;z-index:40;padding:16px}
+#cdlg>.card{background:var(--side);border:1px solid var(--line2);border-radius:18px;width:560px;max-width:100%;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 30px 80px #000a;animation:in .2s ease both}
+#cdlg.danger>.card{border-color:var(--danger);box-shadow:0 30px 80px #000a,0 0 0 3px #ff6b7a33}
+#csum{font-weight:600}#cdlg.danger #csum{color:var(--danger)}
+#cdet{max-height:280px;overflow:auto;margin:6px 0 0;white-space:pre-wrap;word-break:break-word}
+#cdlg .db{padding:16px 20px;overflow:auto;display:flex;flex-direction:column;gap:6px}
+#cdlg .df{padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:8px}
 #msgs{flex:1;overflow:auto;padding:28px 0 12px;scroll-behavior:smooth}
 .inner{max-width:780px;margin:0 auto;padding:0 24px}
 #msgs>.m{max-width:780px;margin:0 auto 22px;padding:0 24px;display:flex;gap:14px;animation:in .25s ease both}
@@ -130,10 +141,16 @@ pre:hover button{opacity:1}
   </div>
 </div>
 <div id="toast"></div>
+<div id="cdlg"><div class="card"><div class="dh" id="ctitle">Approve action</div><div class="db"><div id="csum"></div><pre id="cdet"></pre></div>
+<div class="df"><button id="cdeny">Deny</button><button id="callow" class="primary" style="margin-left:auto">Allow</button></div></div></div>
 <div id="main">
   <div id="top"><button id="menu" class="ghost"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button><select id="prov"></select>
   <select id="eff" title="Thinking effort (reasoning models)"><option value="auto">Thinking: Default</option><option value="low">Thinking: Low</option><option value="medium">Thinking: Medium</option><option value="high">Thinking: High</option><option value="max">Thinking: Max</option></select>
-  <input id="sys" placeholder="System prompt (optional)"></div>
+  <input id="sys" placeholder="System prompt (optional)">
+  <button id="agentb" class="ghost" title="Agent mode: the model can request file/shell tools in a folder you choose"><svg viewBox="0 0 24 24"><path d="m4 17 6-6-6-6M12 19h8"/></svg>Agent</button></div>
+  <div id="agentbar"><button id="aws" class="ghost" title="Choose workspace folder"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg><span id="awsn">Choose workspace…</span></button>
+    <select id="aperm" title="What the agent may do"><option value="readonly">Read-only (list, read, search)</option><option value="ask">Ask before changes</option><option value="auto">Auto-approve changes</option></select>
+    <span class="ahint">The model can only request tools; this app runs them inside the workspace.</span></div>
   <div id="msgs"></div><div id="pv"></div>
   <div id="bar"><div class="box">
     <button id="att" title="Attach image (or paste)"><svg viewBox="0 0 24 24"><path d="m21.4 11.6-9 9a6 6 0 0 1-8.5-8.5l9-9a4 4 0 0 1 5.7 5.7l-9.1 9a2 2 0 0 1-2.8-2.8l8.4-8.5"/></svg></button><input id="file" type="file" accept="image/*" multiple hidden>
@@ -214,15 +231,16 @@ const shrink=f=>new Promise(r=>{const img=new Image();img.onload=()=>{const s=Ma
   URL.revokeObjectURL(img.src);r(c.toDataURL('image/jpeg',.85));};img.src=URL.createObjectURL(f);});
 async function addFiles(files){for(const f of files)if(f.type.startsWith('image/'))pending.push(await shrink(f));renderPv();}
 
-let streaming=null;
+let streaming=null,streamKind=null,agentHandler=null;
 const setBusy=b=>{$('send').innerHTML=b?ICON.stop:ICON.send;$('send').classList.toggle('stop',b);$('send').classList.toggle('primary',!b);$('send').title=b?'Stop':'Send';};
 const grow=()=>{const t=$('in');t.style.height='auto';t.style.height=Math.min(t.scrollHeight,200)+'px';};
-function finish(){streaming=null;setBusy(false);save();}
+function finish(){streaming=null;streamKind=null;setBusy(false);save();renderSide();}
 async function send(){
-  if(streaming){api.stop(streaming);return;}
+  if(streaming){(streamKind==='agent'?api.agentStop:api.stop)(streaming);return;}
   const text=$('in').value.trim();if(!text&&!pending.length)return;
   const p=S.providers.find(x=>x.id===$('prov').value);
   if(!p){toast('Add a provider first (Providers, bottom left).');return;}
+  if(S.agent&&api.agentRun)return agentSend(text,p);
   if(!chat())newChat();const c=chat();
   c.messages.push({role:'user',content:text,...(pending.length&&{images:pending})});
   if(c.title==='New chat')c.title=(text||'Image').slice(0,30);
@@ -237,6 +255,65 @@ async function send(){
   api.start({id,p,effort:S.effort||'auto',system:$('sys').value,messages:c.messages.slice(0,-1)}).catch(e=>handler({id,t:'error',v:e.message}));
 }
 api.on(m=>handler&&handler(m));
+
+/* ---------------- agent mode ---------------- */
+const agentLabel=(name,args)=>{if(typeof args==='string'){try{args=JSON.parse(args)}catch{args={}}}args=args||{};
+  const v=args.filePath||args.path||args.pattern||args.command||args.url||'.';return name+' '+String(v).replace(/`/g,"'").replace(/\s+/g,' ').slice(0,90);};
+const permValue=c=>c.mode==='readonly'?'readonly':c.autoApprove?'auto':'ask';
+function applyAgentCfg(c){
+  $('awsn').textContent=c.root?c.root.split(/[\\/]/).filter(Boolean).pop()||c.root:'Choose workspace…';
+  $('aws').title=c.root||'Choose workspace folder';$('aperm').value=permValue(c);}
+function syncAgent(){
+  const on=!!(S.agent&&api.agentRun);
+  $('agentb').classList.toggle('on',on);$('agentbar').style.display=on?'flex':'none';
+  $('in').placeholder=on?'Describe a task for the agent…':'Message LiteChat…';}
+let confirmId=null;
+function hideConfirm(){$('cdlg').style.display='none';confirmId=null;}
+function showConfirm(m){
+  const r=m.req||{};confirmId=m.reqId;
+  $('cdlg').classList.toggle('danger',!!r.danger);
+  $('ctitle').textContent=r.danger?'⚠ Dangerous command':'Approve '+(r.tool||'action');
+  $('csum').textContent=r.summary||'';$('cdet').textContent=r.detail||'';
+  $('callow').textContent=r.danger?'Allow anyway':'Allow';$('callow').classList.toggle('primary',!r.danger);$('callow').classList.toggle('danger',!!r.danger);
+  $('cdlg').style.display='flex';$('cdeny').focus();}
+const answer=allow=>{const id=confirmId;hideConfirm();if(id)api.agentConfirm({reqId:id,allow});};
+async function agentSend(text,p){
+  if(pending.length){toast('Images are not sent in agent mode.');pending=[];renderPv();}
+  if(!text)return;
+  const cfg=await api.agentCfg();
+  if(!cfg.root){toast('Choose a workspace folder first (Agent bar, under the title).');return;}
+  if(!chat())newChat();const c=chat();
+  const history=c.messages.map(m=>({role:m.role,content:(m.final??m.content)||''})).filter(m=>m.content);
+  c.messages.push({role:'user',content:text});
+  if(c.title==='New chat')c.title=text.slice(0,30);
+  const a={role:'assistant',content:'',final:''};c.messages.push(a);$('in').value='';grow();renderAll();
+  const id=uid();streaming=id;streamKind='agent';setBusy(true);S.prov=p.id;
+  const el=$('msgs').lastChild.querySelector('.body').lastChild;
+  const parts=[];
+  const draw=()=>{
+    let md='';for(const x of parts){if(x.note)md+='\n'+x.note+'\n\n';else md+='- '+(x.ok===undefined?'⏳':x.ok?'✓':'✗')+' `'+x.label+'`'+(x.error?' — '+x.error.replace(/`/g,"'"):'')+'\n';}
+    a.content=md+(a.final?'\n\n'+a.final:'');renderBody(el,a.content||'',  'assistant');$('msgs').scrollTop=1e9;};
+  const end=()=>{hideConfirm();agentHandler=null;if(!a.content)a.content=a.final='(no response)';draw();finish();};
+  agentHandler=m=>{if(m.id!==id)return;
+    if(m.t==='note'){parts.push({note:m.text});draw();}
+    else if(m.t==='call'){parts.push({id:m.callId,label:agentLabel(m.name,m.args)});draw();}
+    else if(m.t==='result'){const x=parts.find(q=>q.id===m.callId);if(x){x.ok=!!m.ok;x.error=m.error;}draw();}
+    else if(m.t==='confirm')showConfirm(m);
+    else if(m.t==='done'){a.final=m.text||(m.stopped?'_(stopped)_':'');end();}
+    else if(m.t==='error'){a.final='[Error] '+m.error;end();}};
+  draw();
+  api.agentRun({id,p,task:text,history,effort:S.effort||'auto'}).then(r=>{if(r&&r.error&&agentHandler)agentHandler({id,t:'error',error:r.error});})
+    .catch(e=>agentHandler&&agentHandler({id,t:'error',error:e.message}));
+}
+if(api.agentRun)api.onAgent(m=>agentHandler&&agentHandler(m));
+if(!api.agentRun)$('agentb').style.display='none';
+$('agentb').onclick=()=>{S.agent=!S.agent;save();syncAgent();};
+$('aws').onclick=async()=>applyAgentCfg(await api.agentPick());
+$('aperm').onchange=async()=>{const v=$('aperm').value;
+  applyAgentCfg(await api.agentSetCfg({mode:v==='readonly'?'readonly':'normal',autoApprove:v==='auto'}));
+  if(v==='auto')toast('Auto-approve: edits and commands run without asking. Dangerous commands still ask.');};
+$('callow').onclick=()=>answer(true);$('cdeny').onclick=()=>answer(false);
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&confirmId)answer(false);});
 
 let editing=null;
 function fillForm(p){editing=p?p.id:null;$('pn').value=p?.name||'';$('pt').value=p?.type||'openai';$('pu').value=p?.baseUrl||'';$('pk').value=p?.apiKey||'';$('pm').value=p?.model||'';models=[];hideML();
@@ -311,5 +388,5 @@ const showDir=async()=>{$('dirp').textContent=(await api.dir()).dir;};
 const reload=async()=>{const d=await api.get();if(d)S=d;else S={providers:S.providers,chats:[],cur:null,prov:S.prov};renderAll();showDir();};
 $('dirb').onclick=async()=>{const r=await api.pickDir();if(r.dir){await reload();toast('Chats now saved in: '+r.dir);}};
 $('dirr').onclick=async()=>{await api.resetDir();await reload();toast('Using default folder');};
-(async()=>{const d=await api.get();if(d)S=d;renderAll();showDir();})();
+(async()=>{const d=await api.get();if(d)S=d;renderAll();showDir();syncAgent();if(api.agentRun)applyAgentCfg(await api.agentCfg());})();
 </script></body></html>
