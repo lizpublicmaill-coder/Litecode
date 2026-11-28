@@ -46,7 +46,24 @@ const conv = (m, an) => {
 };
 ipcMain.on('chat:stop', (_, id) => aborts.get(id)?.abort());
 
-ipcMain.handle('chat:start', async (e, { id, p, messages: raw, system }) => {
+function applyEffort(body, p, e) {
+  const lv = { low: 0, medium: 1, high: 2, max: 3 }[e]; if (lv === undefined) return body;
+  const m = (p.model || '').toLowerCase();
+  if (p.type === 'anthropic') {
+    const budget = [2048, 8192, 16384, 32000][lv];
+    body.thinking = { type: 'enabled', budget_tokens: budget };
+    body.max_tokens = Math.max(body.max_tokens || 0, budget + 4096);
+  } else if (p.type === 'gemini') {
+    const g3 = /gemini-3/.test(m), pro = m.includes('pro');
+    body.generationConfig = { ...(body.generationConfig || {}), thinkingConfig: g3
+      ? { thinkingLevel: pro ? (lv < 1 ? 'low' : 'high') : ['low', 'medium', 'high', 'high'][lv] }
+      : { thinkingBudget: [1024, 8192, 24576, pro ? 32768 : 24576][lv] } };
+  } else {
+    body.reasoning_effort = ['low', 'medium', 'high', 'high'][lv];
+  }
+  return body;
+}
+ipcMain.handle('chat:start', async (e, { id, p, messages: raw, system, effort }) => {
   const messages = raw.map(x => conv(x, p.type === 'anthropic'));
   const send = (t, v) => !e.sender.isDestroyed() && e.sender.send('chat:evt', { id, t, v });
   const ac = new AbortController(); aborts.set(id, ac);
@@ -74,6 +91,7 @@ ipcMain.handle('chat:start', async (e, { id, p, messages: raw, system }) => {
     if (p.apiKey) headers.Authorization = 'Bearer ' + p.apiKey;
     body = { model: p.model, stream: true, messages: system ? [{ role: 'system', content: system }, ...messages] : messages };
   }
+  applyEffort(body, p, effort);
   try {
     const r = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: ac.signal });
     if (!r.ok) throw new Error(`HTTP ${r.status}: ${(await r.text()).slice(0, 500)}`);

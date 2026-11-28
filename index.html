@@ -46,7 +46,7 @@ svg{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:
 #top{padding:12px 20px;display:flex;gap:10px;align-items:center;border-bottom:1px solid var(--line);background:#0e0f13cc;backdrop-filter:blur(8px)}
 #menu{display:none}
 #prov{min-width:220px;max-width:340px;font-weight:600}
-#sys{flex:1}
+#sys{flex:1;min-width:0}#eff{width:170px;flex:none}
 #msgs{flex:1;overflow:auto;padding:28px 0 12px;scroll-behavior:smooth}
 .inner{max-width:780px;margin:0 auto;padding:0 24px}
 #msgs>.m{max-width:780px;margin:0 auto 22px;padding:0 24px;display:flex;gap:14px;animation:in .25s ease both}
@@ -110,7 +110,7 @@ pre:hover button{opacity:1}
   #side{position:fixed;z-index:15;top:0;bottom:0;left:0;transform:translateX(-100%);transition:transform .2s;width:280px}
   #side.open{transform:none;box-shadow:0 0 60px #000}
   body{height:100dvh}
-  #top{flex-wrap:wrap;padding:10px 12px}#prov{min-width:0;flex:1}
+  #top{flex-wrap:wrap;padding:10px 12px}#prov{min-width:0;flex:1}#eff{width:auto;flex:1}
   #msgs>.m,.inner,#pv,#bar{padding-left:12px;padding-right:12px}
   #msgs>.m{gap:10px}
   .g2{grid-template-columns:1fr}
@@ -132,6 +132,7 @@ pre:hover button{opacity:1}
 <div id="toast"></div>
 <div id="main">
   <div id="top"><button id="menu" class="ghost"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button><select id="prov"></select>
+  <select id="eff" title="Thinking effort (reasoning models)"><option value="auto">Thinking: Default</option><option value="low">Thinking: Low</option><option value="medium">Thinking: Medium</option><option value="high">Thinking: High</option><option value="max">Thinking: Max</option></select>
   <input id="sys" placeholder="System prompt (optional)"></div>
   <div id="msgs"></div><div id="pv"></div>
   <div id="bar"><div class="box">
@@ -203,6 +204,7 @@ function renderSide(){
     $('chats').appendChild(d);});
   $('prov').innerHTML=S.providers.map(p=>`<option value="${p.id}">${esc(p.name)} — ${esc(p.model)}</option>`).join('')||'<option>No provider — open Providers</option>';
   if(S.prov)$('prov').value=S.prov;
+  $('eff').value=S.effort||'auto';
 }
 function renderPv(){$('pv').innerHTML='';pending.forEach((s,i)=>{const im=document.createElement('img');im.src=s;im.title='Click to remove';im.onclick=()=>{pending.splice(i,1);renderPv();};$('pv').appendChild(im);});}
 function renderAll(){renderSide();renderMsgs();}
@@ -232,7 +234,7 @@ async function send(){
     else{if(m.t==='error'){a.content+='\n\n[Error] '+m.v;renderBody(el,a.content,'assistant');}
       else if(!a.content)renderBody(el,'(empty response)','assistant');
       finish();}};
-  api.start({id,p,system:$('sys').value,messages:c.messages.slice(0,-1)}).catch(e=>handler({id,t:'error',v:e.message}));
+  api.start({id,p,effort:S.effort||'auto',system:$('sys').value,messages:c.messages.slice(0,-1)}).catch(e=>handler({id,t:'error',v:e.message}));
 }
 api.on(m=>handler&&handler(m));
 
@@ -298,6 +300,7 @@ $('att').onclick=()=>$('file').click();
 $('file').onchange=e=>{addFiles(e.target.files);e.target.value='';};
 $('in').onpaste=e=>{const f=[...e.clipboardData.files];if(f.length){e.preventDefault();addFiles(f);}};
 $('in').oninput=grow;
+$('eff').onchange=()=>{S.effort=$('eff').value;save();};
 $('prov').onchange=()=>{S.prov=$('prov').value;save();};
 $('menu').onclick=e=>{e.stopPropagation();$('side').classList.toggle('open');};
 $('main').addEventListener('click',()=>$('side').classList.remove('open'));

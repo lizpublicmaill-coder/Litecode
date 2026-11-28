@@ -24,6 +24,7 @@ Run without building: `npm start`
 - The provider dialog has a **Preset** dropdown (Gemini, OpenAI, Anthropic, OpenRouter, Groq, DeepSeek, Mistral, xAI, Together, Fireworks, Perplexity, Cerebras, NVIDIA, Cohere, Moonshot, Zhipu, SiliconFlow, Ollama, LM Studio). Anything else that speaks the OpenAI format works via a custom URL.
 
 ## Notes
+- **Thinking** selector (top bar): Default / Low / Medium / High / Max. Default sends nothing extra. Otherwise it maps to each provider's reasoning setting (OpenAI-style `reasoning_effort`, Anthropic thinking budget, Gemini thinking budget/level). Only use it with models that support reasoning, otherwise the provider may return an error.
 - Chats are saved in `%APPDATA%\LiteChat\data.json` by default. Use **📁 Chat folder** in the sidebar to pick another folder (e.g. a synced Dropbox/OneDrive folder); ↺ resets it.
 - Attach images with the 📎 button or by pasting. Images are resized to max 1568px and need a vision-capable model.
 - "Fetch models" in the provider dialog lists models from the provider's /models endpoint.
