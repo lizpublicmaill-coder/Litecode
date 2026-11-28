@@ -16,6 +16,8 @@ Run without building: `npm start`
 - OpenAI-compatible: OpenAI, OpenRouter, Groq, Together, DeepSeek, Mistral, Ollama, LM Studio...
   Base URL example: https://api.openai.com/v1
 - Anthropic: Base URL https://api.anthropic.com
+- Google Gemini (native API): Base URL https://generativelanguage.googleapis.com — get a key at aistudio.google.com
+- The provider dialog has a **Preset** dropdown (Gemini, OpenAI, Anthropic, OpenRouter, Groq, DeepSeek, Mistral, xAI, Together, Fireworks, Perplexity, Cerebras, NVIDIA, Cohere, Moonshot, Zhipu, SiliconFlow, Ollama, LM Studio). Anything else that speaks the OpenAI format works via a custom URL.
 
 ## Notes
 - Attach images with the 📎 button or by pasting. Images are resized to max 1568px and need a vision-capable model.

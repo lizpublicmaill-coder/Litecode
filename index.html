@@ -36,9 +36,10 @@ pre button{position:absolute;top:4px;right:4px;font-size:11px;padding:2px 6px}
 <button id="send">Send</button></div></div>
 <div id="dlg"><div>
 <select id="plist"></select>
+<label>Preset (fills format + URL)</label><select id="preset"><option value="">— custom —</option></select>
 <label>Name</label><input id="pn"><label>Format</label>
-<select id="pt"><option value="openai">OpenAI-compatible</option><option value="anthropic">Anthropic</option></select>
-<label>Base URL (https://api.openai.com/v1 · https://openrouter.ai/api/v1 · http://localhost:11434/v1 · https://api.anthropic.com)</label><input id="pu">
+<select id="pt"><option value="openai">OpenAI-compatible</option><option value="anthropic">Anthropic</option><option value="gemini">Google Gemini (native)</option></select>
+<label>Base URL (pick a preset above, or enter any OpenAI-compatible endpoint)</label><input id="pu">
 <label>API key</label><input id="pk" type="password">
 <label>Model</label><div style="display:flex;gap:8px"><input id="pm" list="ml" style="flex:1"><button id="pfetch">Fetch models</button></div>
 <datalist id="ml"></datalist>
@@ -123,6 +124,29 @@ function fillForm(p){editing=p?p.id:null;$('pn').value=p?.name||'';$('pt').value
   $('plist').innerHTML='<option value="">— new —</option>'+S.providers.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('');$('plist').value=editing||'';}
 $('cfg').onclick=()=>{fillForm(S.providers.find(x=>x.id===S.prov)||S.providers[0]);$('dlg').style.display='flex';};
 $('pclose').onclick=()=>{$('dlg').style.display='none';renderSide();};
+const PRESETS=[
+['Google Gemini','gemini','https://generativelanguage.googleapis.com'],
+['OpenAI','openai','https://api.openai.com/v1'],
+['Anthropic','anthropic','https://api.anthropic.com'],
+['OpenRouter','openai','https://openrouter.ai/api/v1'],
+['Groq','openai','https://api.groq.com/openai/v1'],
+['DeepSeek','openai','https://api.deepseek.com/v1'],
+['Mistral','openai','https://api.mistral.ai/v1'],
+['xAI (Grok)','openai','https://api.x.ai/v1'],
+['Together AI','openai','https://api.together.xyz/v1'],
+['Fireworks','openai','https://api.fireworks.ai/inference/v1'],
+['Perplexity','openai','https://api.perplexity.ai'],
+['Cerebras','openai','https://api.cerebras.ai/v1'],
+['NVIDIA NIM','openai','https://integrate.api.nvidia.com/v1'],
+['Cohere (compat)','openai','https://api.cohere.ai/compatibility/v1'],
+['Moonshot (Kimi)','openai','https://api.moonshot.ai/v1'],
+['Zhipu (GLM)','openai','https://open.bigmodel.cn/api/paas/v4'],
+['SiliconFlow','openai','https://api.siliconflow.cn/v1'],
+['Ollama (local)','openai','http://localhost:11434/v1'],
+['LM Studio (local)','openai','http://localhost:1234/v1'],
+];
+$('preset').innerHTML+=PRESETS.map((p,i)=>`<option value="${i}">${esc(p[0])}</option>`).join('');
+$('preset').onchange=()=>{const p=PRESETS[$('preset').value];if(!p)return;$('pn').value=p[0];$('pt').value=p[1];$('pu').value=p[2];$('preset').value='';};
 $('plist').onchange=()=>fillForm(S.providers.find(x=>x.id===$('plist').value));
 $('padd').onclick=()=>fillForm(null);
 $('psave').onclick=()=>{const p={id:editing||uid(),name:$('pn').value||'Provider',type:$('pt').value,baseUrl:$('pu').value,apiKey:$('pk').value,model:$('pm').value};

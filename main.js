@@ -9,6 +9,13 @@ ipcMain.handle('open', (_, u) => /^https?:\/\//.test(u) && shell.openExternal(u)
 ipcMain.handle('models:list', async (_, p) => {
   try {
     const base = p.baseUrl.replace(/\/+$/, ''), an = p.type === 'anthropic';
+    if (p.type === 'gemini') {
+      const r = await fetch(base + '/v1beta/models?pageSize=1000', { headers: { 'x-goog-api-key': p.apiKey } });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const j = await r.json();
+      return { ids: (j.models || []).filter(m => !m.supportedGenerationMethods || m.supportedGenerationMethods.includes('generateContent'))
+        .map(m => m.name.replace(/^models\//, '')).sort() };
+    }
     const h = an ? { 'x-api-key': p.apiKey, 'anthropic-version': '2023-06-01' } : (p.apiKey ? { Authorization: 'Bearer ' + p.apiKey } : {});
     const r = await fetch(base + (an ? '/v1/models?limit=100' : '/models'), { headers: h });
     if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -32,7 +39,20 @@ ipcMain.handle('chat:start', async (e, { id, p, messages: raw, system }) => {
   const ac = new AbortController(); aborts.set(id, ac);
   const base = p.baseUrl.replace(/\/+$/, '');
   let url, headers = { 'Content-Type': 'application/json' }, body;
-  if (p.type === 'anthropic') {
+  if (p.type === 'gemini') {
+    url = `${base}/v1beta/models/${encodeURIComponent(p.model)}:streamGenerateContent?alt=sse`;
+    headers['x-goog-api-key'] = p.apiKey;
+    body = {
+      contents: raw.map(m => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [
+          ...(m.images || []).map(d => ({ inlineData: { mimeType: d.match(/:(.*?);/)[1], data: d.split(',')[1] } })),
+          ...(m.content ? [{ text: m.content }] : [])
+        ]
+      })),
+      ...(system && { systemInstruction: { parts: [{ text: system }] } })
+    };
+  } else if (p.type === 'anthropic') {
     url = base + '/v1/messages';
     headers['x-api-key'] = p.apiKey; headers['anthropic-version'] = '2023-06-01';
     body = { model: p.model, max_tokens: p.maxTokens || 4096, stream: true, messages, ...(system && { system }) };
@@ -53,7 +73,7 @@ ipcMain.handle('chat:start', async (e, { id, p, messages: raw, system }) => {
         const d = l.slice(5).trim(); if (d === '[DONE]') continue;
         try {
           const j = JSON.parse(d);
-          const txt = p.type === 'anthropic' ? (j.type === 'content_block_delta' ? j.delta?.text : '') : j.choices?.[0]?.delta?.content;
+          const txt = p.type === 'gemini' ? (j.candidates?.[0]?.content?.parts || []).filter(x => !x.thought).map(x => x.text || '').join('') : p.type === 'anthropic' ? (j.type === 'content_block_delta' ? j.delta?.text : '') : j.choices?.[0]?.delta?.content;
           if (txt) send('delta', txt);
         } catch {}
       }
