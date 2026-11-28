@@ -1,10 +1,23 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
 const fs = require('fs'), path = require('path');
 const aborts = new Map();
-const file = () => path.join(app.getPath('userData'), 'data.json');
+const cfgFile = () => path.join(app.getPath('userData'), 'config.json');
+const defDir = () => app.getPath('userData');
+const dir = () => { try { const d = JSON.parse(fs.readFileSync(cfgFile(), 'utf8')).dir; if (d && fs.existsSync(d)) return d; } catch {} return defDir(); };
+const setDir = d => { fs.mkdirSync(defDir(), { recursive: true }); fs.writeFileSync(cfgFile(), JSON.stringify({ dir: d })); };
+const file = () => path.join(dir(), 'data.json');
+ipcMain.handle('dir:get', () => ({ dir: dir() }));
+ipcMain.handle('dir:pick', async () => {
+  const r = await dialog.showOpenDialog({ title: 'Choose chat folder', properties: ['openDirectory', 'createDirectory'] });
+  if (r.canceled || !r.filePaths[0]) return {};
+  const d = r.filePaths[0], target = path.join(d, 'data.json');
+  if (!fs.existsSync(target)) { try { fs.copyFileSync(file(), target); } catch {} }
+  setDir(d); return { dir: d };
+});
+ipcMain.handle('dir:reset', () => { setDir(defDir()); return { dir: defDir() }; });
 
 ipcMain.handle('store:get', () => { try { return JSON.parse(fs.readFileSync(file(), 'utf8')); } catch { return null; } });
-ipcMain.handle('store:set', (_, d) => { fs.writeFileSync(file(), JSON.stringify(d)); });
+ipcMain.handle('store:set', (_, d) => { const f = file(), t = f + '.tmp'; fs.writeFileSync(t, JSON.stringify(d)); fs.renameSync(t, f); });
 ipcMain.handle('open', (_, u) => /^https?:\/\//.test(u) && shell.openExternal(u));
 ipcMain.handle('models:list', async (_, p) => {
   try {

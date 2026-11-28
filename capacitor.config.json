@@ -1,0 +1,6 @@
+{
+  "appId": "com.litechat.app",
+  "appName": "LiteChat",
+  "webDir": "www",
+  "server": { "androidScheme": "http", "cleartext": true }
+}

@@ -1,5 +1,8 @@
 const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('api', {
+  dir: () => ipcRenderer.invoke('dir:get'),
+  pickDir: () => ipcRenderer.invoke('dir:pick'),
+  resetDir: () => ipcRenderer.invoke('dir:reset'),
   get: () => ipcRenderer.invoke('store:get'),
   set: d => ipcRenderer.invoke('store:set', d),
   start: a => ipcRenderer.invoke('chat:start', a),
